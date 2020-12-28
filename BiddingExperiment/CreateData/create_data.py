@@ -14,11 +14,7 @@ if __name__ == '__main__':
     # DayMonth is obtained in the same way as done in the Jupyter-Notebook given by Criteo.
     df_from_Criteo['dayMonth'] = np.floor(df_from_Criteo.timestamp / 86400.).astype(int)
     df_from_Criteo['dayWeek'] = [int(day) % 7 for day in list(df_from_Criteo['dayMonth'])]
-
-    print('df_from_Criteo.head(10)')
-    print(df_from_Criteo.head(10))
-    print()
-
+    
     ## Columns we use for our experiment
     cat_cols_wout_day = \
         ['campaign', 'cat1', 'cat2', 'cat3', 'cat4', 'cat5', 'cat6', 'cat7', 'cat8', 'cat9']
@@ -132,7 +128,7 @@ if __name__ == '__main__':
 
     ## Save the data
 
-    pathToSave = '/Users/alobos/Documents/PhD/ICML2021_submission_code/BiddingExperiment/CreateData/DataForPred/'
+    pathToSave = '/Users/alobos/Documents/PhD/ICML2021_submission_code/BiddingExperiment/DataForPred/'
     if not os.path.exists(pathToSave):
         os.makedirs(pathToSave)
 

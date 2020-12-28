@@ -19,11 +19,11 @@ def createMapColsAttrToIndxs(df, categoriesToSearchForUnique):
             mapToRet[name][attr] = i
     return mapToRet
 
-def CreateDfForDynamic(df, mapOneHotData, listColumnsCat, listColumsBinOrReal):
+def CreateDfForDynamic(df, map_attr_to_indxs, listColumnsCat, listColumsBinOrReal):
     toRet = deepcopy(df[[*listColumnsCat, *listColumsBinOrReal]])
     for name in listColumnsCat:
         print(name)
-        toRet.loc[:,name] = list(itemgetter(*list(toRet[name]))(mapOneHotData[name]))
+        toRet.loc[:,name] = list(itemgetter(*list(toRet[name]))(map_attr_to_indxs[name]))
     return toRet
 
 

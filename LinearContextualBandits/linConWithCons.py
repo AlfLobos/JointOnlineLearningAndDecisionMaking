@@ -17,7 +17,7 @@ if __name__ == '__main__':
     possible_bd_on_revenue_error = [0.0, 0.1, 0.5]
     possible_bd_on_unc_per_row = [0.0, 0.1]
 
-    thetaMets = ['RidgeReg', 'RidgeRegPlusRandomness', 'OptimisticApp', 'ThompsonSampling', 'NoLearning']
+    thetaMets = ['RidgeReg', 'RidgeRegPlusRandomness', 'MatrixApp', 'ThompsonSampling', 'KnownThetaAst', 'FixTheta']
     ## In the future I could add other mirror Descent methods
     mirrorDescMets = ['subg']
 
@@ -31,19 +31,16 @@ if __name__ == '__main__':
 
     initLam = 0
 
-    ## Let's create Seeds. For the 50,000 run, we divide the experiment per parts
-    ## of 10,000 in order to save less storage in matrices.
-
     np.random.seed(3678)
     ## Up to 5 seeds per simulations
-    seedsMat = np.random.choice(10000000, (num_sim,5))
+    seedsMat = np.random.choice(10000000, (num_sim,2))
 
     parser = argparse.ArgumentParser()
     parser.add_argument('sim', type=int, help = "Sim to run")
     parser.add_argument('T', type=int,  help = "Length of the simulation")
     parser.add_argument("rho", type=int, help = "Rho to use")
     parser.add_argument('comb', type=int, help = "Combination of num_vec and size_vec to use")
-    parser.add_argument('revE', type=int, help = "Bd on Revenue Error")
+    parser.add_argument('revE'      , type=int, help = "Bd on Revenue Error")
     parser.add_argument('uncRow', type=int, help = "Bd on uncertainty per Row for each row of W")
 
     args = parser.parse_args()
@@ -62,12 +59,12 @@ if __name__ == '__main__':
     bd_on_unc_per_row = possible_bd_on_unc_per_row[indexUncRow]
 
 
-    initTheta = np.ones(size_vec)/size_vec
+    initTheta = np.ones(size_vec)/np.sqrt(size_vec)
     seedsToUse = seedsMat[sim]
     barC = rho
     eta = 0.5/np.sqrt(T)
     thres = int(np.sqrt(T)/2)
-    nu = bd_on_revenue_error * np.sqrt(size_vec * np.log(T))
+    nu = bd_on_revenue_error * np.sqrt(size_vec * np.log(T))/10
     if bd_on_revenue_error == 0:
         nu = 0.1
 
@@ -76,7 +73,6 @@ if __name__ == '__main__':
         initTheta, eta, rho, thres, mirrorDescMets, thetaMets, alphaForRidge, bd_on_revenue_error, \
         bd_unc_ridge, bd_on_unc_per_row, seedsToUse, barC)
 
-    
     end_time = time.time()
 
     listIndexes = [indexSim, indexT, indexRho, indexComb, indexRevE, indexUncRow]
@@ -87,12 +83,9 @@ if __name__ == '__main__':
 
     print('Running '+midPartOfName+' took: '+str(end_time-start_time)+' secs.')
 
-    parent_folder_to_save = 'Path to save folder'
+    parent_folder_to_save = os.path.join(os.getcwd(), 'ResultsICML')
 
     if not os.path.exists(parent_folder_to_save):
         os.makedirs(parent_folder_to_save)
 
     save_procedure(infoToRet, theta_ast, bestOffline, allRandInRev, parent_folder_to_save, listIndexes)
-    
-
-    

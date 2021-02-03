@@ -3,13 +3,14 @@ import numpy as np
 
 from sklearn.linear_model import Ridge
 import time
+import pickle
 import os
 
 
 def update_M_and_Minverse(M, invM, w_t):
     midNom = np.matmul(np.expand_dims(w_t, axis=1), np.expand_dims(w_t, axis=0))
     nom = np.matmul(np.matmul(invM, midNom),invM)
-    denom = 1+ np.dot(np.dot(w_t, invM), w_t)
+    denom = 1 + np.dot(np.dot(w_t, invM), w_t)
     return M + midNom, invM - nom/denom
 
 class Generate_theta():
@@ -26,7 +27,7 @@ class Generate_theta():
         self.nu = dtUpToT['nu']
             
     def update_data(self, dtUpToT):
-        reward =  dtUpToT['reward'][-1]
+        reward =  dtUpToT['rewards'][-1]
         w_selec = dtUpToT['w_selected'][-1]
         self.M, self.invM = \
             update_M_and_Minverse(self.M, self.invM, dtUpToT['w_selected'][-1])
@@ -39,33 +40,30 @@ class Generate_theta():
         thres = dtUpToT['thres']
         if (method_name == 'RidgeReg' or method_name == 'RidgeRegPlusRandomness') and numTimesCons < thres:
             return self.thetaHat
-#         if numTimesCons < thres:
-#             if method_name == 'RidgeReg' or method_name == 'RidgeRegPlusRandomness':
-#                 return self.thetaHat
         else:            
             if method_name == 'RidgeReg' or method_name == 'RidgeRegPlusRandomness':
                 thetaJustRidge = 0
-                if len(dtUpToT['w_selected'])<= 2000:
-                    dtUpToT['ridgeRegObject'].fit(dtUpToT['w_selected'], dtUpToT['reward'])
-                    thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
-                else:
-                    indexes = np.random.choice(len(dtUpToT['w_selected']), 2000, replace=False)
-                    w_selToUse = [dtUpToT['w_selected'][i] for i in indexes]
-                    rew_ToUse = [dtUpToT['reward'][i] for i in indexes]
-                    dtUpToT['ridgeRegObject'].fit(w_selToUse, rew_ToUse)
-                    thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
-                    thetaJustRidge = 0.99 * dtUpToT['thetas'][-1] + 0.01 * thetaJustRidge
+                ## This was a trick to make the ridge regression method faster
+                # if len(dtUpToT['w_selected'])<= 1000:
+                dtUpToT['ridgeRegObject'].fit(dtUpToT['w_selected'], dtUpToT['rewards'])
+                thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
+                # else:
+                #     indexes = np.random.choice(len(dtUpToT['w_selected']), 1000, replace=False)
+                #     w_selToUse = [dtUpToT['w_selected'][i] for i in indexes]
+                #     rew_ToUse = [dtUpToT['rewards'][i] for i in indexes]
+                #     dtUpToT['ridgeRegObject'].fit(w_selToUse, rew_ToUse)
+                #     thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
+                #     thetaJustRidge = 0.99 * dtUpToT['thetas'][-1] + 0.01 * thetaJustRidge
                 if method_name == 'RidgeReg':
                     return thetaJustRidge
                 else:
                     extRand = uncVecForRidge/np.sqrt(numTimesCons)
                     return thetaJustRidge + extRand
-            elif method_name == 'OptimisticApp':
+            elif method_name == 'MatrixApp':
                 return self.thetaHat
             elif method_name == 'ThompsonSampling':
                 nu = dtUpToT['nu']
                 return np.squeeze(np.random.multivariate_normal(self.thetaHat, nu*nu*self.invM, 1))                
-                # return np.squeeze(self.rng.multivariate_normal(self.thetaHat, nu*nu*self.invM, 1))
 
 def solve_dual_problem(matW, theta, lam, rho):
     k_ast = np.argmax(np.dot(matW, theta))
@@ -96,11 +94,13 @@ def best_offline_solution(theta_ast, W_all, rho, b, alpha_b, T):
     sortedValues  = (np.sort(bestValues))[::-1]
     minActs, maxActs = int(np.ceil(alpha_b *T/rho)), int(np.floor(b*T/rho))
     onlyBestMaxActs = (sortedValues[:maxActs])
-    cumSum = np.cumsum(onlyBestMaxActs)
+    vec_cumul_sum = np.cumsum(onlyBestMaxActs)
     if minActs<maxActs:
-        return np.max(cumSum[minActs:])
+        # Expected case.
+        return np.max(vec_cumul_sum[minActs:])
     else:
-        return np.max(cumSum[-1])
+        print("Caution, we have lower/upper bounds ({0}, {1})".format(minActs, maxActs) )
+        return np.max(vec_cumul_sum[-1])
 
 def createW_theta(num_vec, size_vec):
     W_real, theta_ast = 0, 0
@@ -120,20 +120,11 @@ def create_rands(num_vec, size_vec, max_iter):
         randTensorW[i,:,:] = (np.random.rand(num_vec, size_vec) - 0.5) * 2
         randForRidge[i,:] = (np.random.rand(size_vec) - 0.5) * 2
     return randTensorW, randForRidge, randForRev
-    
-    # dtUpToT['bestOffline'] = \
-    #     best_offline_solution(theta_ast, savedWs, rho, b, alpha_b, T)
-
-def addUncertaintyToW(W_real, uncMat, maxUncPerRow):
-    for i in range(np.shape(W_real)[0]):
-        uncMat[i] *=  maxUncPerRow
-    return W_real + uncMat
-
 
 def general_algorithm(b, alpha_b, theta_ast, barC, eta, rho, initT, dtUpToT , thetaGen,\
                      Ws, RandVecForRidge, vectUncRev):
-    theta  = dtUpToT['thetas'][-1]
-    lam = dtUpToT['lams'][-1]
+    theta  = dtUpToT['thetas'][0][:]
+    lam = dtUpToT['lams'][0]
     finT = initT + len(Ws)
 
     budgetLeft = dtUpToT['budgetLeft']
@@ -149,11 +140,13 @@ def general_algorithm(b, alpha_b, theta_ast, barC, eta, rho, initT, dtUpToT , th
         uncRev = vectUncRev[t - initT]
         
         ## Step 1. Obtain theta
-        if methodTheta != 'NoLearning':
+        if methodTheta == 'KnownThetaAst':
+            theta = theta_ast[:]
+        elif methodTheta == 'FixTheta':
+            theta = dtUpToT['thetas'][0][:]
+        else:
             if numTimesCons > 0:
                 theta = thetaGen.get_theta(numTimesCons, dtUpToT, uncVecForRidge = randForRidge)
-        else:
-            theta = theta_ast
 
         ## Step 2. Receive W
         matW = Ws[t - initT]   
@@ -197,17 +190,15 @@ def general_algorithm(b, alpha_b, theta_ast, barC, eta, rho, initT, dtUpToT , th
             ## Step 6. Budget consumption and observe revenue
             budgetLeft -= rho
             dtUpToT['budgetLeft'] -= rho
-            dtUpToT['reward'].append(np.dot(w_t, theta_ast) + uncRev)
-            dtUpToT['reward_ast'].append(np.dot(w_t_ast, theta_ast) + uncRev)
-#             dtUpToT['reward'].append(np.dot(w_t, theta_ast)*(1+multForRev))
-#             dtUpToT['reward_ast'].append(np.dot(w_t_ast, theta_ast)*(1+multForRev))
+            dtUpToT['rewards'].append(np.dot(w_t, theta_ast) + uncRev)
+            dtUpToT['rewards_ast'].append(np.dot(w_t_ast, theta_ast) + uncRev)
             
             ## Step 7. Break Condition
             if budgetLeft < barC:
                 break
                 
             ## Step 8. Update theta data
-            if methodTheta != 'NoLearning':
+            if methodTheta not in ['KnownThetaAst', 'FixTheta']:
                 thetaGen.update_data(dtUpToT)
 
 
@@ -254,7 +245,7 @@ def run_an_experiment(T, b, alpha_b, num_vec, size_vec, nu, initLam, initTheta, 
         revenue function an i.i.d. Uniform(-0.1,0.1) * bd_on_revenue_error).
     bd_unc_ridge: float
         Bound the uncertainty used in the Ridge Regression Plus Uncertainty method
-    bd_on_unc_per_row: foat
+    bd_on_unc_per_row: float
         Bound on the uncertainty that is added elementwise to W at each iteration.
     seedsToUse: List[int]
         Seeds use for reproducibility
@@ -284,7 +275,7 @@ def run_an_experiment(T, b, alpha_b, num_vec, size_vec, nu, initLam, initTheta, 
 
     theta_ast, W_real = createW_theta(num_vec, size_vec)  
     randTensorW, randForRidge, randForRev = create_rands(num_vec, size_vec, T)
-    Ws = [addUncertaintyToW(W_real, randTensorW[i][:], bd_on_unc_per_row) for i in range(T)]
+    Ws = [W_real + randTensorW[i] * bd_on_unc_per_row for i in range(T)]
     RandVecsForRidge = [randForRidge[i][:] * bd_unc_ridge for i in range(T)]
     vectUncRev = randForRev * bd_on_revenue_error
     del randTensorW
@@ -320,8 +311,8 @@ def run_an_experiment(T, b, alpha_b, num_vec, size_vec, nu, initLam, initTheta, 
         ## Populate dtUpToT
         
         ## Everything related to "Data Up To Period T".
-        namesWithEmptyLists = ['dot_ts', 'dot_ast_ts', 'dot_ts_ast', 'dot_ast_ts_ast', 'reward',\
-            'reward_ast', 'w_selected', 'w_selected_ast', 'k_ts', 'k_ts_ast', 'y_ts', 'y_ts_ast', \
+        namesWithEmptyLists = ['dot_ts', 'dot_ast_ts', 'dot_ts_ast', 'dot_ast_ts_ast', 'rewards',\
+            'rewards_ast', 'w_selected', 'w_selected_ast', 'k_ts', 'k_ts_ast', 'y_ts', 'y_ts_ast', \
             'z_ts', 'z_t_asts']
         for name in namesWithEmptyLists:
             dtUpToT[name] = []
@@ -332,7 +323,7 @@ def run_an_experiment(T, b, alpha_b, num_vec, size_vec, nu, initLam, initTheta, 
         ## Theta Generator
 
         thetaGen = 0
-        if dtUpToT['ThetaUpdMethod']!= 'NoLearning':
+        if dtUpToT['ThetaUpdMethod'] not in ['KnownThetaAst', 'FixTheta']:
             thetaGen = Generate_theta(dtUpToT)
 
         general_algorithm(b, alpha_b, theta_ast, barC, eta, rho, 0, dtUpToT , thetaGen,\
@@ -342,82 +333,19 @@ def run_an_experiment(T, b, alpha_b, num_vec, size_vec, nu, initLam, initTheta, 
     return infoToRet, theta_ast, W_real, vectUncRev, bestOffline
 
 def save_procedure(dictFull, theta_ast, bestOffline, allRandInRev, parent_folder_to_save, listIndexes):
-    """
-    This function creates a subfolder in 'parent_folder_to_save' saving:
-    1. The real 'theta^ast'
-    2. Optimal offline value.
-    3. Randomness added to the revenue vector (the whole vector)
-    4. Dual variables
-    5. The binary vector (y^1,..,y^T) 
-    6. Vector of the indexes of the arm that would have be chosen if corresponding y is 1
-    7. As above, but if the theta^ast would have been observed
-    8. Vector of dot products between estimated thetas and the arms choosen
-    9. Vector of dot products between estimated thetad and the armd we would have choosen 
-        if theta^* was known
-    10. Vector of dot products between theta^* and the arms choosen
-    11. Vector of dot products between theta^* and the armd we would have choosen 
-        if theta^* was known
-    12. Vector of the l1 norm between estimated thetas and theta^*
-    13. Vector of the l2 norm between estimated thetas and theta^*
-    
-    ------
-    dictFull: Dict[str, any]
-        Dictionary obtained from running 'run_an_experiment(..)'. It contains all the information
-        needed to save from a particular experiment run.
-    theta_ast: np.array(float)
-        theta^* value from the paper. Is the real theta^* value that the methods try to learn.
-    bestOffline: float
-        Value of best offline solution possible if all the uncertainty  were known in advance.
-    allRandInRev:np.array(float) (1-d, T)
-        An i.i.d. Uniform(-1,1) vector of size of the iterations run used for adding uncertainty 
-        to the revenue term.
-    parent_folder_to_save: str
-        Folder in which we will save subfolder for each experiment configuration and run
-    listIndexes: List[int]
-        Indexes of the configuration and run number. Is used to create a subfolder name to store 
-        the data of this particular configuration.
-
-    Return
-    -------
-    None 
-    """
     midPartOfName = ""
     for ind in listIndexes:
         midPartOfName += '_'+str(ind)
     folderToSave = parent_folder_to_save + '/' + midPartOfName
     if not os.path.exists(parent_folder_to_save + '/' + midPartOfName):
         os.makedirs(parent_folder_to_save + '/' + midPartOfName)
-    
-    np.save(folderToSave +  '/theta_ast', np.array(theta_ast))
 
-    np.save(folderToSave + '/bestOffline', np.array(bestOffline))
-
-    np.save(folderToSave + '/randOnRev', np.array(allRandInRev))
+    dict_all_data = {}
+    dict_all_data['bestOffline'] =  bestOffline
 
     for name in dictFull.keys():
-        np.save(folderToSave + '/lams' + '_' + name , \
-                np.array(dictFull[name]['lams']))
+        dict_all_data['lams' + '_' + name] =  np.array(dictFull[name]['lams'])
+        dict_all_data['y_ts' + '_' + name] =  np.array(dictFull[name]['y_ts'], dtype = int)
+        dict_all_data['rewards' + '_' + name] =  np.array(dictFull[name]['rewards'], dtype = float)
 
-        np.save(folderToSave  + '/y_ts'  + '_' + name, \
-                np.array(dictFull[name]['y_ts'], dtype = int))
-        np.save(folderToSave + '/k_ts'  + '_' + name, \
-                np.array(dictFull[name]['k_ts'], dtype = int))
-        np.save(folderToSave + '/k_ts_ast' + '_' + name, \
-                np.array(dictFull[name]['k_ts_ast'], dtype = int))
-
-        np.save(folderToSave + '/dot_ts' + '_' + name, \
-                np.array(dictFull[name]['dot_ts']))
-        np.save(folderToSave + '/dot_ast_ts' + '_' + name, \
-                np.array(dictFull[name]['dot_ast_ts']))
-        np.save(folderToSave + '/dot_ts_ast' + '_' + name, \
-                np.array(dictFull[name]['dot_ts_ast']))
-        np.save(folderToSave + '/dot_ast_ts_ast' + '_' + name, \
-                np.array(dictFull[name]['dot_ast_ts_ast']))
-        
-        ## Norms of theta to theta^*
-        lenOfThetas = len(dictFull[name]['thetas'])
-        listOfDiff = [(dictFull[name]['thetas'][i] - theta_ast) for i in range(lenOfThetas)]
-        np.save(folderToSave + '/diffThetasl1' + '_' + name, \
-               np.array([np.sum(np.abs(diff)) for diff in listOfDiff]))
-        np.save(folderToSave + '/diffThetasl2'  + '_' + name, \
-               np.array([np.sqrt(np.dot(diff, diff)) for diff in listOfDiff]))
+    pickle.dump(dict_all_data, open(os.path.join(folderToSave, 'all_data.p'), "wb"))

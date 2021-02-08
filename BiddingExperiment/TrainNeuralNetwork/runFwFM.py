@@ -6,7 +6,7 @@ def RunExperiment(net, train_loader, train_loader_oversampled, val_loader, \
         val_loader_oversampled, Y_tr_np, Y_val_np, torchOptim, lossFnTr, lossFnVal, 0, epochs,\
         name, device, lossSigm, checkForDiv = True, pathToSave = results_directory,\
         saveNetDict = saveNetDict, scheduler = scheduler, tol = tol)
-    np.savetxt(results_directory + name + '.txt', np.array(losses), fmt='%s'Utils
+    np.savetxt(results_directory + name + '.txt', np.array(losses), fmt='%s')
 
 if __name__ == '__main__':
     import numpy as np

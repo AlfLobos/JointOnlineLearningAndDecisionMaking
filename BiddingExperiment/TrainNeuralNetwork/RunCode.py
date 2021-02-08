@@ -102,8 +102,6 @@ def val_for_auc_prec_rec(net, data_loader, device, lossSigm, labels):
                 delta_corr = torch.sum(target == curr_pred_thres).item()
                 all_pred_prob = \
                     torch.cat((all_pred_prob, curr_pred_prob), dim =0)
-            # print('lossSigm: ' + str(lossSigm))
-            # print('curr_pred_prob.size(): ' + str(curr_pred_prob.size()))
             sel_pos += torch.sum(curr_pred_thres).item()
             sel_neg += target.numel() - torch.sum(curr_pred_thres).item()
             true_pos += delta_corr_pos
@@ -116,8 +114,6 @@ def val_for_auc_prec_rec(net, data_loader, device, lossSigm, labels):
 
     ## calculate auc
     all_pred_prob_np = all_pred_prob.cpu().numpy()
-    # print('np.shape(all_pred_prob_np): ' + str(np.shape(all_pred_prob_np)))
-    # print('np.shape(labels): ' + str(np.shape(labels)))
     tpr, fpr, _ = roc_curve(labels[:len(all_pred_prob_np)], all_pred_prob_np, pos_label = 1) 
     auc = auc_score(tpr, fpr)
     return auc, precision, recall, f1_score

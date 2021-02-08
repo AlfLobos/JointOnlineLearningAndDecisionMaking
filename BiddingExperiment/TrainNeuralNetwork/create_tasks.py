@@ -6,7 +6,7 @@ import os
 if __name__ == '__main__':
     current_directory = os.getcwd()
 
-    executionLine = 'python /global/scratch/alobos/FwFM_2020/runFwFM.py'
+    executionLine = 'python /path_where_runFwFM_is/runFwFM.py'
 
     rgIndStep, rgEmbSz, rgMask, rgScale, rgLoss = 5, 3, 2, 2, 2
 

@@ -43,17 +43,8 @@ class Generate_theta():
         else:            
             if method_name == 'RidgeReg' or method_name == 'RidgeRegPlusRandomness':
                 thetaJustRidge = 0
-                ## This was a trick to make the ridge regression method faster
-                # if len(dtUpToT['w_selected'])<= 1000:
                 dtUpToT['ridgeRegObject'].fit(dtUpToT['w_selected'], dtUpToT['rewards'])
                 thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
-                # else:
-                #     indexes = np.random.choice(len(dtUpToT['w_selected']), 1000, replace=False)
-                #     w_selToUse = [dtUpToT['w_selected'][i] for i in indexes]
-                #     rew_ToUse = [dtUpToT['rewards'][i] for i in indexes]
-                #     dtUpToT['ridgeRegObject'].fit(w_selToUse, rew_ToUse)
-                #     thetaJustRidge = dtUpToT['ridgeRegObject'].coef_[:]
-                #     thetaJustRidge = 0.99 * dtUpToT['thetas'][-1] + 0.01 * thetaJustRidge
                 if method_name == 'RidgeReg':
                     return thetaJustRidge
                 else:

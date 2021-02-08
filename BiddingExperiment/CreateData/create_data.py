@@ -7,7 +7,7 @@ from utils_data import *
 
 if __name__ == '__main__':
     # Change this line to the pathw where the file criteo_attribution_dataset.tsv.gz is.
-    pathToGZIPWithCriteoData = '/Users/alobos/Documents/CriteoDataset/criteo_attribution_dataset/'
+    pathToGZIPWithCriteoData = 'path_to_downloaded_criteo_data/'
     print('Making a dataframe out of criteo_attribution_dataset.tsv.gz')
     df_from_Criteo = pd.read_csv(pathToGZIPWithCriteoData+'criteo_attribution_dataset.tsv.gz', sep='\t', compression='gzip')
 
@@ -24,8 +24,6 @@ if __name__ == '__main__':
     noncat_cols = ['click', 'conversion', 'cost', 'cpo']
 
     map_attr_to_indxs = createMapColsAttrToIndxs(df_from_Criteo, cat_cols_w_day)
-
-
 
     print('Using the dataframe read from Criteo, create a dataframe', end=' ')
     print('with the columns that we need and using indexes instead of categories.')
@@ -128,7 +126,7 @@ if __name__ == '__main__':
 
     ## Save the data
 
-    pathToSave = '/Users/alobos/Documents/PhD/ICML2021_submission_code/BiddingExperiment/DataForPred/'
+    pathToSave = 'path_to_save_data/'
     if not os.path.exists(pathToSave):
         os.makedirs(pathToSave)
 
